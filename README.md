@@ -1,4 +1,4 @@
-Script to report information on jobs running on Odyssey
+# Script to report information on jobs running on Odyssey
 
 For more information run:
 ./job_report.sh --help
@@ -32,5 +32,4 @@ SACCT_ARGS="--name=pre_calibraiton" $HOME/scripts/job_report.sh $JOB_DIR > "$OUT
 mail -s "CALIBRATION REPORT" esurface@hsph.harvard.edu < "$OUTPUT"
 
 Run crontab -e to edit crontab and add the following code: (more info: man crontab) 
-# runs the job_report script watcher script at 8AM every morning
 0 8 * * *     ~/scripts/crontab_script.sh
