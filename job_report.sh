@@ -4,7 +4,7 @@
 #
 
 usage() {	
-echo "usage: [SACCT_ARGS=args] job_report.sh [sacct_args] [--array] [--dir=job_dir] [--verbose] 
+echo "usage: [SACCT_ARGS=args] job_report.sh [sacct_args] [--array] [--dir <job_dir>] [--verbose] 
  
  sacct_args: Add arguments for /usr/bin/sacct by passing arguments inline
 	They can also be passed by setting SACCT_ARGS as an environment variable 
@@ -15,7 +15,7 @@ echo "usage: [SACCT_ARGS=args] job_report.sh [sacct_args] [--array] [--dir=job_d
 }
 
 # source external scripts for additional functionality
-source ./job_report_ext.sh
+source $HOME/reports/job_report_ext.sh
 
 #### GLOBALS ####
 SACCT=/usr/bin/sacct
@@ -112,11 +112,12 @@ run_times() {
 handle_completed() {
 	runs=($@)
 
+	if [ $VERBOSE -eq 1 ]; then
 	run_times ${runs[@]}
-
-	_ext_handle_passed_and_failed ${runs[@]}
-	
+	#_ext_handle_passed_and_failed ${runs[@]}
 	echo ""
+	fi	
+	
 }
 
 handle_failed() {
@@ -161,8 +162,10 @@ handle_running() {
 		list+=(${split[$JOBID]})
 	done
 
+	if [ $VERBOSE -eq 1 ]; then
 	echo "Running jobs: "
 	pretty_print_tabs ${list[@]}
+	fi
 
 	echo ""
 }
@@ -191,7 +194,7 @@ do
         --array) 	
 			ARRAY=1
             ;;
-		--dir)
+        --dir)
 			shift
 			if [ -z $1 ]; then
 				usage
@@ -199,7 +202,7 @@ do
 			fi
 			WORK_DIR=$1
 			;;
-		--help)
+        --help)
 			usage
 			exit 1
 			;;
@@ -227,6 +230,7 @@ if [[ ${#all[@]} = 0 ]]; then
 	echo "No jobs found with the name '$1'"
 	exit 1
 fi
+
 for run in ${all[@]}; do
     if [[ $run = *"batch"* ]]; then
         continue
@@ -234,39 +238,41 @@ for run in ${all[@]}; do
         continue
     else # process non-extern/batch jobs
     	IFS='|' read -ra split <<< "$run" # split the sacct line by '|'
-		if [ ${split[$STATE]} = "COMPLETED" ]; then
-			COMPLETED+=($run)
-		elif [ ${split[$STATE]} = "FAILED" ]; then
-			FAILED+=($run)
-		elif [ ${split[$STATE]} = "TIMEOUT" ]; then
-			TIMEOUT+=($run)
-		elif [ ${split[$STATE]} = "RUNNING" ]; then
-			RUNNING+=($run)
-		elif [ ${split[$STATE]} = "PENDING" ]; then
-			PENDING+=($run)
-		else
-			OTHER+=($run)
-		fi
+        state=${split[$STATE]}
+        if [[ $state = "COMPLETED" ]]; then
+               COMPLETED+=($run)
+        elif [[ $state = "FAILED" ]]; then
+               FAILED+=($run)
+        elif [[ $state = "TIMEOUT" ]]; then
+               TIMEOUT+=($run)
+        elif [[ $state = "RUNNING" ]]; then
+               RUNNING+=($run)
+        elif [[ $state = "PENDING" ]]; then
+               PENDING+=($run)
+        else
+               OTHER+=($run)
+        fi
     fi
+ 
 done
 
 echo "${#COMPLETED[@]} COMPLETED jobs"
-if [[ ${#COMPLETED[@]} > 0 ]]; then
+if [[ ${#COMPLETED[@]} > 0 && $VERBOSE -eq 1 ]]; then
     handle_completed ${COMPLETED[@]}
 fi
 
 echo "${#FAILED[@]} FAILED jobs"
-if [[ ${#FAILED[@]} > 0 ]]; then
+if [[ ${#FAILED[@]} > 0 && $VERBOSE -eq 1 ]]; then
 	handle_failed ${FAILED[@]}
 fi
 
 echo "${#TIMEOUT[@]} TIMEOUT jobs"
-if [[ ${#TIMEOUT[@]} > 0 ]]; then
+if [[ ${#TIMEOUT[@]} > 0 && $VERBOSE -eq 1 ]]; then
     handle_failed ${TIMEOUT[@]}
 fi
 
 echo "${#RUNNING[@]} RUNNING jobs"
-if [[ ${#RUNNING[@]} > 0 ]]; then
+if [[ ${#RUNNING[@]} > 0 && $VERBOSE -eq 1 ]]; then
     handle_running ${RUNNING[@]}
 fi
 

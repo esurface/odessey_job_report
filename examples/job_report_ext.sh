@@ -4,7 +4,7 @@
 #
 # Use this script to add funtionality to the job_report script
 
-handle_passed_and_failed() {
+_ext_handle_passed_and_failed() {
     runs=($@)
 
     output_dir=$WORK_DIR
@@ -18,13 +18,10 @@ handle_passed_and_failed() {
 		IFS='|' read -ra split <<< "$run" 
         jobid=${split[$JOBID]}
         str=$(cat "$output_dir/$prefix$jobid.err")
-        if [ "$str" = "" ]; then
-            continue
-        fi
-        if [ "$str" = "PARTNERSHIP CALIBRATION PASSED: true" ]; then
+        if [[ "$str" = *"PARTNERSHIP CALIBRATION PASSED: true"* ]]; then
             passed+=($jobid)
             passed_runs+=($run)
-        else
+        elif [[ "$str" = *"PARTNERSHIP CALIBRATION PASSED: false"* ]]; then
             failed+=($jobid)
             failed_runs+=($run)
         fi
