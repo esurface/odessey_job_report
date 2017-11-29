@@ -1,0 +1,80 @@
+#!/bin/bash
+
+usage() {
+    echo "usage: create_report.sh [-adh] [--append <dir>] [--dir <dir>] <job_id> <job_name>"
+}
+
+create_new() {
+cat << EOT >> ${JOB_NAME}_report.sh
+JOB_NAME=$JOB_NAME
+JOB_DIR=$JOB_DIR
+JOB_IDS=$JOB_IDS
+OUTPUT="\$HOME/reports/.\${JOB_NAME}_output"
+\$HOME/reports/job_report.sh --jobs=\$JOB_IDS --array --dir \$JOB_DIR --verbose > "\$OUTPUT"
+mail -s "\$JOB_NAME REPORT" esurface@hsph.harvard.edu < "\$OUTPUT"
+
+EOT
+
+chmod 755 ${JOB_NAME}_report.sh
+
+}
+
+append_ids() {
+echo 'not implemented'
+}
+
+while test $# -gt 0
+do
+    case "$1" in
+        -a|--append)        
+            APPEND=1
+            shift
+            if [ -z $1 ]; then
+               usage
+               exit 1
+            fi
+            REPORT=$1
+			if [[ -z $REPORT ]]; then
+				echo "$REPORT does not exist"
+				usage
+				exit 1
+			fi
+            ;;
+        -d|--dir)
+            shift
+            if [ -z $1 ]; then
+               usage
+               exit 1
+            fi
+            JOB_DIR=$1
+            ;;
+        -h|--help)
+            usage
+            exit 1
+            ;;
+        *)
+            ARGS+=($1)
+            ;;
+    esac
+    shift
+done
+
+if [[ -z $ARGS[0] ]]; then
+echo "No jobs specified"
+usage
+exit 1
+fi
+JOB_IDS+=${ARGS[0]}
+
+if [[ -z $ARGS[1] && $APPEND -ne 1 ]]; then
+echo "No job name specified"
+usage
+exit 1
+fi
+JOB_NAME=${ARGS[1]}
+
+if [[ -e $APPEND ]]; then
+append_ids $REPORT $JOB_IDS
+else
+create_new $JOB_IDS $JOB_NAME $JOB_DIR
+fi
