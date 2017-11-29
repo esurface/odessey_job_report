@@ -23,7 +23,8 @@ SACCT_ARGS+=("-P --noheader") # Add required SACCT arguments for parsing
 
 # Keep the format and indexes aligned
 export SACCT_FORMAT='jobid,state,partition,submit,start,end'
-JOBID=0		# Use to find the corresponding batch directory
+JOBID=0		# get the jobid from jobid_jobstep
+JOBSTEP=1	# get the jobstep from jobid_jobstep
 STATE=1		# Job state
 PARTITION=2	# Where is the job running?
 SUBMIT=3	# Submit time
@@ -71,6 +72,26 @@ print_sorted_jobs() {
 		for l in ${list[@]}; do
 			IFS='_' read -ra split <<< "$l"
 			echo ${split[1]}
+		done | sort -nu
+		) )
+	pretty_print_commas ${sorted[@]}
+}
+
+get_sorted_jobs() {
+# get the list of jobs
+	runs=($@)
+
+	list=()
+	for run in ${runs[@]}; do
+		IFS='|' read -ra split <<< "$run"
+		jobid=${split[$JOBID]}
+		list+=($jobid)
+	done
+
+    sorted=( $(
+		for l in ${list[@]}; do
+			IFS='_' read -ra split <<< "$l"
+			echo ${split[0]}
 		done | sort -nu
 		) )
 	pretty_print_commas ${sorted[@]}
@@ -202,6 +223,15 @@ do
 			fi
 			WORK_DIR=$1
 			;;
+		--exclude)
+			shift
+			if [ -z $1 ]; then
+				usage
+				exit 1
+			fi
+			EXCLUDE=1
+			IFS=',' read -ra EXCLUDED <<< "$1"
+			;;
         --help)
 			usage
 			exit 1
@@ -227,33 +257,45 @@ echo "Finding jobs using: $SACCT ${SACCT_ARGS[@]}"
 all=$($SACCT ${SACCT_ARGS[@]})
 
 if [[ ${#all[@]} = 0 ]]; then
-	echo "No jobs found with the name '$1'"
+	echo "No jobs found with these sacct args"
 	exit 1
+else
+	echo "Jobs: $(get_sorted_jobs ${all[@]})"
 fi
 
 for run in ${all[@]}; do
+	IFS='|' read -ra split <<< "$run" # split the sacct line by '|'
+    state=${split[$STATE]}
     if [[ $run = *"batch"* ]]; then
         continue
     elif [[ $run = *"extern"* ]]; then
         continue
-    else # process non-extern/batch jobs
-    	IFS='|' read -ra split <<< "$run" # split the sacct line by '|'
-        state=${split[$STATE]}
-        if [[ $state = "COMPLETED" ]]; then
-               COMPLETED+=($run)
-        elif [[ $state = "FAILED" ]]; then
-               FAILED+=($run)
-        elif [[ $state = "TIMEOUT" ]]; then
-               TIMEOUT+=($run)
-        elif [[ $state = "RUNNING" ]]; then
-               RUNNING+=($run)
-        elif [[ $state = "PENDING" ]]; then
-               PENDING+=($run)
-        else
-               OTHER+=($run)
-        fi
-    fi
+	fi
  
+    if [[ $EXCLUDE -eq 1 ]]; then
+		IFS='_' read -ra job <<< "${split[$JOBID]}"
+	    jobid=${job[$JOBID]}
+	    jobstep=${job[$JOBSTEP]}
+		if [[ "${EXCLUDED[@]}" =~ "${jobid}" ]]; then
+			continue
+		fi
+	fi
+
+    # process non-extern/batch or excluded jobs
+    if [[ $state = "COMPLETED" ]]; then
+		COMPLETED+=($run)
+    elif [[ $state = "FAILED" ]]; then
+        FAILED+=($run)
+    elif [[ $state = "TIMEOUT" ]]; then
+        TIMEOUT+=($run)
+    elif [[ $state = "RUNNING" ]]; then
+        RUNNING+=($run)
+    elif [[ $state = "PENDING" ]]; then
+        PENDING+=($run)
+    else
+        OTHER+=($run)
+    fi
+
 done
 
 echo "${#COMPLETED[@]} COMPLETED jobs"
