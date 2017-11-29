@@ -191,6 +191,23 @@ handle_running() {
 	echo ""
 }
 
+handle_pending() {
+	runs=($@)
+
+	list=()
+	for run in ${runs[@]}; do
+		IFS='|' read -ra split <<< "$run"
+		list+=(${split[$JOBID]})
+	done
+
+	if [ $VERBOSE -eq 1 ]; then
+	echo "Pending jobs: "
+	pretty_print_tabs ${list[@]}
+	fi
+
+	echo ""
+}
+
 handle_other() {
 	runs=($@)
 
@@ -319,6 +336,9 @@ if [[ ${#RUNNING[@]} > 0 && $VERBOSE -eq 1 ]]; then
 fi
 
 echo "${#PENDING[@]} PENDING jobs"
+if [[ ${#PENDING[@]} > 0 && $VERBOSE -eq 1 ]]; then
+    handle_pending ${PENDING[@]}
+fi
 
 if [[ ${#OTHER[@]} > 0 ]]; then
 	echo "${#OTHER[@]} jobs  with untracked status"
