@@ -280,7 +280,9 @@ echo "${#PENDING[@]} PENDING jobs"
 
 if [[ ${#OTHER[@]} > 0 ]]; then
 	echo "${#OTHER[@]} jobs  with untracked status"
-	handle_other ${OTHER[@]}
+	if [[ $VERBOSE -eq 1 ]]; then
+		handle_other ${OTHER[@]}
+	fi
 fi
 
 exit 0
