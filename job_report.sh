@@ -19,7 +19,7 @@ source $HOME/reports/job_report_ext.sh
 
 #### GLOBALS ####
 SACCT=/usr/bin/sacct
-SACCT_ARGS+=("-P --noheader") # Add required SACCT arguments for parsing
+SACCT_ARGS+=("-XP --noheader") # Add required SACCT arguments for parsing
 
 # Keep the format and indexes aligned
 export SACCT_FORMAT='jobid,state,partition,submit,start,end'
@@ -283,13 +283,8 @@ fi
 for run in ${all[@]}; do
 	IFS='|' read -ra split <<< "$run" # split the sacct line by '|'
     state=${split[$STATE]}
-    if [[ $run = *"batch"* ]]; then
-        continue
-    elif [[ $run = *"extern"* ]]; then
-        continue
-	fi
- 
     if [[ $EXCLUDE -eq 1 ]]; then
+        # don't process excluded jobs
 		IFS='_' read -ra job <<< "${split[$JOBID]}"
 	    jobid=${job[$JOBID]}
 	    jobstep=${job[$JOBSTEP]}
@@ -298,7 +293,6 @@ for run in ${all[@]}; do
 		fi
 	fi
 
-    # process non-extern/batch or excluded jobs
     if [[ $state = "COMPLETED" ]]; then
 		COMPLETED+=($run)
     elif [[ $state = "FAILED" ]]; then
