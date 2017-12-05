@@ -1,16 +1,16 @@
 #!/bin/bash
 
 usage() {
-    echo "usage: create_report.sh [-adh] [--append <dir>] [--dir <dir>] <job_id> <job_name>"
+    echo "usage: create_report.sh [-adhn] [--append <dir>] [--dir <dir>] <--name <name>> [<job_id>,[job_id]]"
 }
 
 create_new() {
 cat << EOT >> ${JOB_NAME}_report.sh
-JOB_NAME=$JOB_NAME
+JOB_NAME="$JOB_NAME"
 JOB_DIR=$JOB_DIR
-JOB_IDS=$JOB_IDS
+JOB_IDS="--jobs=$JOB_IDS"
 OUTPUT="\$HOME/reports/.\${JOB_NAME}_output"
-\$HOME/reports/job_report.sh --jobs=\$JOB_IDS --array --dir \$JOB_DIR --verbose > "\$OUTPUT"
+\$HOME/reports/job_report.sh --name=\$JOB_NAME \$JOB_IDS --array --dir \$JOB_DIR --verbose > "\$OUTPUT"
 mail -s "\$JOB_NAME REPORT" esurface@hsph.harvard.edu < "\$OUTPUT"
 
 EOT
@@ -34,11 +34,11 @@ do
                exit 1
             fi
             REPORT=$1
-			if [[ -z $REPORT ]]; then
-				echo "$REPORT does not exist"
-				usage
-				exit 1
-			fi
+            if [[ -z $REPORT ]]; then
+                echo "$REPORT does not exist"
+                usage
+                exit 1
+            fi
             ;;
         -d|--dir)
             shift
@@ -52,26 +52,37 @@ do
             usage
             exit 1
             ;;
+        -n|--name)
+            shift
+            if [ -z $1 ]; then
+               usage
+               exit 1
+            fi
+            JOB_NAME=$1
+            ;;
         *)
-            ARGS+=($1)
+            JOB_IDS=($1)
             ;;
     esac
     shift
 done
 
-if [[ -z $ARGS[0] ]]; then
-echo "No jobs specified"
-usage
-exit 1
-fi
-JOB_IDS+=${ARGS[0]}
-
-if [[ -z $ARGS[1] && $APPEND -ne 1 ]]; then
+if [[ -z $JOB_NAME ]]; then
 echo "No job name specified"
 usage
 exit 1
 fi
-JOB_NAME=${ARGS[1]}
+
+#if [[ -z $JOB_IDS ]]; then
+#echo "No jobs specified"
+#usage
+#exit 1
+#fi
+
+#if [[ ! $JOB_IDS =~ ^[:digit:]$ ]]; then
+#echo "$JOB_IDS is not a properly formed slurm id"
+#exit 1
+#fi
 
 if [[ -e $APPEND ]]; then
 append_ids $REPORT $JOB_IDS
