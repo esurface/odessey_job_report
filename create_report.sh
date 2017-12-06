@@ -9,8 +9,9 @@ cat << EOT >> ${JOB_NAME}_report.sh
 JOB_NAME="$JOB_NAME"
 JOB_DIR=$JOB_DIR
 JOB_IDS="--jobs=$JOB_IDS"
+JOB_DATE="-S $(date +%Y-%m-%dT%H:%M)"
 OUTPUT="\$HOME/reports/.\${JOB_NAME}_output"
-\$HOME/reports/job_report.sh --name=\$JOB_NAME \$JOB_IDS --array --dir \$JOB_DIR --verbose > "\$OUTPUT"
+\$HOME/reports/job_report.sh $JOB_DATE --name=\$JOB_NAME \$JOB_IDS --array --dir \$JOB_DIR --verbose > "\$OUTPUT"
 mail -s "\$JOB_NAME REPORT" esurface@hsph.harvard.edu < "\$OUTPUT"
 
 EOT
