@@ -1,18 +1,38 @@
 #!/bin/bash
 
 usage() {
-    echo "usage: create_report.sh [-adhn] [--append <dir>] [--dir <dir>] <--name <name>> [<job_id>,[job_id]]"
+    echo "usage: create_report.sh [-adhn] <--name <name>> [--append <dir>] [--dir <dir>] [<job_id>,[job_id]]"
+}
+
+join_by() { 
+local IFS="$1"; shift; echo "$*"; 
 }
 
 create_new() {
-cat << EOT >> ${JOB_NAME}_report.sh
-JOB_NAME="$JOB_NAME"
+JOB_IDS=$IDS
+JOB_DATE="$(date +%Y-%m-%dT%H:%M)"
+cat << EOT > ${JOB_NAME}_report_config.sh
+#!/usr/bin/env bash
+
+JOB_NAME=$JOB_NAME
+JOB_IDS=$JOB_IDS
 JOB_DIR=$JOB_DIR
-JOB_IDS="--jobs=$JOB_IDS"
-JOB_DATE="-S $(date +%Y-%m-%dT%H:%M)"
+JOB_DATE=$JOB_DATE
 OUTPUT="\$HOME/reports/.\${JOB_NAME}_output"
-\$HOME/reports/job_report.sh $JOB_DATE --name=\$JOB_NAME \$JOB_IDS --array --dir \$JOB_DIR --verbose > "\$OUTPUT"
-mail -s "\$JOB_NAME REPORT" esurface@hsph.harvard.edu < "\$OUTPUT"
+
+EOT
+
+cat << EOT > ${JOB_NAME}_report.sh
+#!/usr/bin/env bash
+
+source $PWD/${JOB_NAME}_report_config.sh
+
+if [[ -n \$JOB_DATE ]]; then
+JOB_DATE_ARG="-S \${JOB_DATE}"
+fi
+
+\$HOME/reports/job_report.sh \$JOB_DATE_ARG --name=$JOB_NAME --jobs=\$JOB_IDS --array --dir \$JOB_DIR --verbose > "\$OUTPUT"
+mail -s "$JOB_NAME REPORT" esurface@hsph.harvard.edu < "\$OUTPUT"
 
 EOT
 
@@ -21,13 +41,30 @@ chmod 755 ${JOB_NAME}_report.sh
 }
 
 append_ids() {
-echo 'not implemented'
+source $REPORT
+if [[ -z $JOB_IDS ]]; then
+JOB_IDS=$IDS
+else
+JOB_IDS=$(echo $JOB_IDS,$IDS)
+fi
+#sort and unique the list of jobs
+JOB_IDS=$(echo $JOB_IDS | tr , "\n" | sort | uniq | tr "\n" , ; echo )
+
+cat << EOT > ${JOB_NAME}_report_config.sh
+JOB_NAME=$JOB_NAME
+JOB_IDS=$JOB_IDS
+JOB_DIR=$JOB_DIR
+JOB_DATE="$(date +%Y-%m-%dT%H:%M)"
+OUTPUT="\$HOME/reports/.\${JOB_NAME}_output"
+
+EOT
+
 }
 
 while test $# -gt 0
 do
     case "$1" in
-        -a|--append)        
+        -a|--append)
             APPEND=1
             shift
             if [ -z $1 ]; then
@@ -61,14 +98,17 @@ do
             fi
             JOB_NAME=$1
             ;;
+        -*|--*)
+            echo "Unknown Input $1"
+            ;;
         *)
-            JOB_IDS=($1)
+            IDS=($1)
             ;;
     esac
     shift
 done
 
-if [[ -z $JOB_NAME ]]; then
+if [[ -z $APPEND && -z $JOB_NAME ]]; then
 echo "No job name specified"
 usage
 exit 1
@@ -85,8 +125,8 @@ fi
 #exit 1
 #fi
 
-if [[ -e $APPEND ]]; then
-append_ids $REPORT $JOB_IDS
+if [[ -n $APPEND ]]; then
+append_ids 
 else
-create_new $JOB_IDS $JOB_NAME $JOB_DIR
+create_new 
 fi
