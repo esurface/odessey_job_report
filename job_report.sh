@@ -135,7 +135,7 @@ handle_completed() {
 
 	if [ $VERBOSE -eq 1 ]; then
 	run_times ${runs[@]}
-	#_ext_handle_passed_and_failed ${runs[@]}
+	_ext_handle_passed_and_failed ${runs[@]}
 	echo ""
 	fi	
 	
@@ -177,18 +177,22 @@ handle_failed() {
 handle_running() {
 	runs=($@)
 
+	if [ $VERBOSE -eq 1 ]; then
 	list=()	
 	for run in ${runs[@]}; do
 		IFS='|' read -ra split <<< "$run"
 		list+=(${split[$JOBID]})
 	done
 
-	if [ $VERBOSE -eq 1 ]; then
 	echo "Running jobs: "
-	pretty_print_tabs ${list[@]}
+	if [ $ARRAY -eq 1 ]; then
+		print_sorted_jobs ${list[@]}
+	else
+		pretty_print_tabs ${list[@]}
 	fi
 
 	echo ""
+	fi
 }
 
 handle_pending() {

@@ -1,63 +1,69 @@
 #!/bin/bash
 
 usage() {
-    echo "usage: create_report.sh [-adhn] <--name <name>> [--append <dir>] [--dir <dir>] [<job_id>,[job_id]]"
+    echo "usage: create_report.sh [-adhn] <--name <name>> [--append <dir>] [--dir <dir>] <job_id[,job_id]>"
 }
 
-join_by() { 
-local IFS="$1"; shift; echo "$*"; 
-}
-
-create_new() {
+create_config() {
 JOB_IDS=$IDS
 JOB_DATE="$(date +%Y-%m-%dT%H:%M)"
-cat << EOT > ${JOB_NAME}_report_config.sh
+cat << EOT > ${BATCH_NAME}_report_config.sh
 #!/usr/bin/env bash
 
-JOB_NAME=$JOB_NAME
+BATCH_NAME=$BATCH_NAME
 JOB_IDS=$JOB_IDS
 JOB_DIR=$JOB_DIR
 JOB_DATE=$JOB_DATE
-OUTPUT="\$HOME/reports/.\${JOB_NAME}_output"
+OUTPUT="\$HOME/reports/.${BATCH_NAME}_output"
 
 EOT
+}
 
-cat << EOT > ${JOB_NAME}_report.sh
+create_report() {
+
+cat << EOT > ${BATCH_NAME}_report.sh
 #!/usr/bin/env bash
 
-source $PWD/${JOB_NAME}_report_config.sh
+source $PWD/${BATCH_NAME}_report_config.sh
 
 if [[ -n \$JOB_DATE ]]; then
 JOB_DATE_ARG="-S \${JOB_DATE}"
 fi
 
-\$HOME/reports/job_report.sh \$JOB_DATE_ARG --name=$JOB_NAME --jobs=\$JOB_IDS --array --dir \$JOB_DIR --verbose > "\$OUTPUT"
-mail -s "$JOB_NAME REPORT" esurface@hsph.harvard.edu < "\$OUTPUT"
+\$HOME/job_submittion/slurm_mgr.sh \$JOB_DATE_ARG --name=$BATCH_NAME --jobs=\$JOB_IDS --array --dir \$JOB_DIR --verbose > "\$OUTPUT"
+mail -s "$BATCH_NAME REPORT" esurface@hsph.harvard.edu < "\$OUTPUT"
 
 EOT
 
-chmod 755 ${JOB_NAME}_report.sh
+chmod 755 ${BATCH_NAME}_report.sh
 
 }
 
 append_ids() {
-source $REPORT
-if [[ -z $JOB_IDS ]]; then
-JOB_IDS=$IDS
-else
-JOB_IDS=$(echo $JOB_IDS,$IDS)
-fi
-#sort and unique the list of jobs
-JOB_IDS=$(echo $JOB_IDS | tr , "\n" | sort | uniq | tr "\n" , ; echo )
+    source $CONFIG
+    if [[ -z $JOB_IDS ]]; then
+        # Add the job ids env var if missing
+        if [[ $(grep "JOB_IDS" $CONFIG) ]]; then
+            sed -i "s/JOB_IDS=.*/JOB_IDS=${IDS}/" $CONFIG
+        else
+            echo "JOB_IDS=${IDS}" >> $CONFIG
+        fi
+    else
+        # Add the job ids in sorted order
+        JOB_IDS=$(echo $JOB_IDS,$IDS)
+        JOB_IDS=$(echo $JOB_IDS | tr , "\n" | sort | uniq | tr "\n" , ; echo ) # sed 's/,$/\n/'
+        sed -i "s/JOB_IDS=.*/JOB_IDS=${JOB_IDS}/" $CONFIG
+    fi
 
-cat << EOT > ${JOB_NAME}_report_config.sh
-JOB_NAME=$JOB_NAME
-JOB_IDS=$JOB_IDS
-JOB_DIR=$JOB_DIR
-JOB_DATE="$(date +%Y-%m-%dT%H:%M)"
-OUTPUT="\$HOME/reports/.\${JOB_NAME}_output"
-
-EOT
+    if [[ -z $JOB_DATE ]]; then
+        # Add the job date if it is missing
+        JOB_DATE="$(date +%Y-%m-%dT%H:%M)"
+        if [[ $(grep "JOB_DATE" $CONFIG) ]]; then
+            sed -i "s/JOB_DATE=.*/JOB_DATE=${JOB_DATE}/" $CONFIG
+        else
+            echo "JOB_DATE=${JOB_DATE}" >> $CONFIG
+        fi
+    fi
 
 }
 
@@ -71,9 +77,9 @@ do
                usage
                exit 1
             fi
-            REPORT=$1
-            if [[ -z $REPORT ]]; then
-                echo "$REPORT does not exist"
+            CONFIG=$1
+            if [[ -z $CONFIG ]]; then
+                echo "$CONFIG does not exist"
                 usage
                 exit 1
             fi
@@ -96,7 +102,7 @@ do
                usage
                exit 1
             fi
-            JOB_NAME=$1
+            BATCH_NAME=$1
             ;;
         -*|--*)
             echo "Unknown Input $1"
@@ -108,25 +114,33 @@ do
     shift
 done
 
-if [[ -z $APPEND && -z $JOB_NAME ]]; then
+if [[ -z $APPEND ]] && [[ -z $BATCH_NAME ]]; then
 echo "No job name specified"
 usage
 exit 1
 fi
 
-#if [[ -z $JOB_IDS ]]; then
-#echo "No jobs specified"
-#usage
-#exit 1
-#fi
+if [[ -z $IDS ]]; then
+echo "No jobs specified"
+usage
+exit 1
+fi
 
-#if [[ ! $JOB_IDS =~ ^[:digit:]$ ]]; then
-#echo "$JOB_IDS is not a properly formed slurm id"
-#exit 1
-#fi
+if [[ -z $JOB_DIR ]]; then
+JOB_DIR=$PWD
+fi
+
+if [[ $IDS =~ [^[:digit:]$] ]]; then
+    echo "$IDS is not a properly formed slurm id"
+    exit 1
+fi
 
 if [[ -n $APPEND ]]; then
-append_ids 
+    append_ids 
 else
-create_new 
+    create_config
+fi
+
+if [[ ! -e ${BATCH_NAME}_report.sh ]]; then
+   create_report
 fi
